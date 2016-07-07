@@ -1,1 +1,125 @@
-<h2>hi</h2>
+<html>
+<head>
+	<style type="text/css">
+		#refreshing {
+			display: none;
+		}
+	</style>
+	<script src="https://code.jquery.com/jquery-3.0.0.min.js"></script>
+	<script type="text/javascript">		
+		var who = getQueryParam('who');
+		if (!who) {
+			who = 'poultree';
+		}
+		var apiKey = getQueryParam('key');
+		var sheetId = getQueryParam('sheet');
+
+		var CFG = {
+			'poultree': {
+				cell: 'A7'
+			},
+			'elegy': {
+				cell: 'B7'
+			},
+			'gary': {
+				cell: 'C7'
+			},
+			'inno': {
+				cell: 'D7'
+			}
+		};
+	
+		var TABLE = 'icons';
+		var AUTO_REFRESH_CELL = 'E10';
+		var AUTO_REFRESH_INTERVAL = 5000;
+		var AUTO_REFRESH_CHECK_INTERVAL = 30 * 3600 * 1000;
+			
+		var curIcons = [''];
+		var autoRefreshInterval;
+		
+		function updateIcon() {
+			queryCells(CFG[who].cell, CFG[who].cell, 
+				function(values) {
+					var rows = values[0];
+					for (var i = 0; i < Math.min(curIcons.length, rows.length); i++) {
+						var icon = rows[i];
+						if (icon && icon !== curIcons[i]) {
+							$('#icon' + i).attr('src', icon);
+							curIcons[i] = icon;
+						}
+					}
+				},
+				function(err) {
+					console.log(err);
+				}
+			);
+		}
+		
+		function updateAutoRefreshState() {
+			queryCells(AUTO_REFRESH_CELL, AUTO_REFRESH_CELL,
+				function(values) {
+					var autoRefresh = 'yes' === values[0][0];
+					toggleAutoRefresh(autoRefresh);
+				},
+				function(err) {
+					console.log(err);
+					toggleAutoRefresh(false);
+				}
+			);
+		}
+		
+		function toggleAutoRefresh(doAuto) {
+			if (doAuto && !autoRefreshInterval) {
+				autoRefreshInterval = setInterval(updateIcon, AUTO_REFRESH_INTERVAL);
+			}
+			else if (!doAuto && autoRefreshInterval) {
+				clearInterval(autoRefreshInterval);
+			}
+		}
+		
+		function queryCells(startCell, endCell, cb, cbErr) {
+			var url = buildSpreadsheetURL(startCell, endCell);
+			$.get(url, function(data) {
+				if (data && data.values) {
+					cb(data.values);
+				}
+				else {
+					cbErr('Could not get data');
+				}
+			}).fail(function(err) {
+				cbErr(err + '');
+			});
+		}
+		
+		function buildSpreadsheetURL(startCell, endCell) {
+			return 'https://sheets.googleapis.com/v4/spreadsheets/' + sheetId +
+			'/values/' + TABLE + '!' + startCell + ':' + endCell + '?key=' + apiKey;	
+		}
+		
+		function getQueryParam(name, url) {
+			if (!url) url = window.location.href;
+			name = name.replace(/[\[\]]/g, "\\$&");
+			var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+				results = regex.exec(url);
+			if (!results) return null;
+			if (!results[2]) return '';
+			return decodeURIComponent(results[2].replace(/\+/g, " "));
+		}
+		
+		$(function() {
+			updateIcon();
+			updateAutoRefreshState();
+			setInterval(updateAutoRefreshState, AUTO_REFRESH_CHECK_INTERVAL);
+			$('#icon0').click(function() {
+				updateIcon();
+				updateAutoRefreshState();
+			});
+		});
+	</script>
+</head>
+<body>
+	<div id="icons">
+		<img id="icon0"></img>
+	</div>
+</body>
+</html>
