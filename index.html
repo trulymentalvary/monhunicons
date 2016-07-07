@@ -31,35 +31,20 @@
 	
 		var TABLE = 'icons';
 		var AUTO_REFRESH_CELL = 'E10';
-		var AUTO_REFRESH_INTERVAL = 5000;
-		var AUTO_REFRESH_CHECK_INTERVAL = 30 * 3600 * 1000;
+		var AUTO_REFRESH_INTERVAL = 20000;
 			
 		var curIcons = [''];
 		var autoRefreshInterval;
 		
 		function updateIcon() {
-			queryCells(CFG[who].cell, CFG[who].cell, 
+			var ranges = [
+				[CFG[who].cell, CFG[who].cell],
+				[AUTO_REFRESH_CELL, AUTO_REFRESH_CELL]
+			];
+			queryCells(ranges, 
 				function(values) {
-					var rows = values[0];
-					for (var i = 0; i < Math.min(curIcons.length, rows.length); i++) {
-						var icon = rows[i];
-						if (icon && icon !== curIcons[i]) {
-							$('#icon' + i).attr('src', icon);
-							curIcons[i] = icon;
-						}
-					}
-				},
-				function(err) {
-					console.log(err);
-				}
-			);
-		}
-		
-		function updateAutoRefreshState() {
-			queryCells(AUTO_REFRESH_CELL, AUTO_REFRESH_CELL,
-				function(values) {
-					var autoRefresh = 'yes' === values[0][0];
-					toggleAutoRefresh(autoRefresh);
+					parseIcons(values);
+					parseAutoRefreshState(values);
 				},
 				function(err) {
 					console.log(err);
@@ -68,20 +53,39 @@
 			);
 		}
 		
+		function parseIcons(values) {
+			var rows = values[0].values;
+			for (var i = 0; i < Math.min(curIcons.length, rows.length); i++) {
+				var icon = rows[i];
+				if (icon && icon !== curIcons[i]) {
+					$('#icon' + i).attr('src', icon);
+					curIcons[i] = icon;
+				}
+			}
+		}
+		
+		function parseAutoRefreshState(values) {
+			var rows = values[1].values[0];
+			var autoRefresh = 'yes' === rows[0];
+			toggleAutoRefresh(autoRefresh);
+		}
+		
 		function toggleAutoRefresh(doAuto) {
 			if (doAuto && !autoRefreshInterval) {
+				console.log('Starting auto refresh');
 				autoRefreshInterval = setInterval(updateIcon, AUTO_REFRESH_INTERVAL);
 			}
 			else if (!doAuto && autoRefreshInterval) {
+				console.log('Stopping auto refresh');
 				clearInterval(autoRefreshInterval);
 			}
 		}
 		
-		function queryCells(startCell, endCell, cb, cbErr) {
-			var url = buildSpreadsheetURL(startCell, endCell);
+		function queryCells(cellRanges, cb, cbErr) {
+			var url = buildSpreadsheetURL(cellRanges);
 			$.get(url, function(data) {
-				if (data && data.values) {
-					cb(data.values);
+				if (data && data.valueRanges) {
+					cb(data.valueRanges);
 				}
 				else {
 					cbErr('Could not get data');
@@ -91,9 +95,16 @@
 			});
 		}
 		
-		function buildSpreadsheetURL(startCell, endCell) {
+		function buildSpreadsheetURL(cellRanges) {
+			var rangesParam = '';
+			$.each(cellRanges, function(i, r) {
+				if (rangesParam.length)  {
+					rangesParam += '&';
+				}
+				rangesParam += 'ranges=' + TABLE + '!' + r[0] + ':' + r[1];
+			});
 			return 'https://sheets.googleapis.com/v4/spreadsheets/' + sheetId +
-			'/values/' + TABLE + '!' + startCell + ':' + endCell + '?key=' + apiKey;	
+			'/values:batchGet/?' + rangesParam + '&key=' + apiKey;	
 		}
 		
 		function getQueryParam(name, url) {
@@ -108,11 +119,8 @@
 		
 		$(function() {
 			updateIcon();
-			updateAutoRefreshState();
-			setInterval(updateAutoRefreshState, AUTO_REFRESH_CHECK_INTERVAL);
 			$('#icon0').click(function() {
 				updateIcon();
-				updateAutoRefreshState();
 			});
 		});
 	</script>
