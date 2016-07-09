@@ -66,7 +66,7 @@
 		
 		function parseAutoRefreshState(values) {
 			var rows = values[1].values[0];
-			var autoRefresh = 'yes' === rows[0];
+			var autoRefresh = rows[0] && rows[0].toLowerCase() === 'yes';
 			toggleAutoRefresh(autoRefresh);
 		}
 		
